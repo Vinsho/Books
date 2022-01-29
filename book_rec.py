@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from youtube_dl import main
+from pandas import DataFrame
 
 
 class DatasetManager:
@@ -24,35 +24,54 @@ class DatasetManager:
         return dataframe.apply(lambda x: x.str.lower()
                                if x.dtype == 'object' else x)
 
-    def readers(self, df, book_title, author):
-        readers = df['User-ID'][df['Book-Title'] == book_title &
-                                df['Book-Author'].str.contains(author)]
-        return np.unique(readers.toList())
+    @staticmethod
+    def readers_books(df: DataFrame, book_title: str,
+                      author: str) -> DataFrame:
+        """
+        :return: Dataframe of books read by given book readers.
+        """
+        readers = df['User-ID'][(df['Book-Title'] == book_title) &
+                                (df['Book-Author'].str.contains(author))]
+        reader_ids = np.unique(readers.tolist())
+        return df[(df['User-ID'].isin(reader_ids))]
+
+    @staticmethod
+    def filter_by_thresh(readers_books: DataFrame,
+                         threshold: int) -> DataFrame:
+        """
+        :param readers_books: Books dataframe
+        :param threshold: Lowest amount of ratings that we accept.
+        :return: Filtered books
+        """
+        book_rating_counts = readers_books.groupby(
+            ['Book-Title'], as_index=False).agg('count')
+
+        # select only books with amount of ratings > threshold
+        filtered_titles = book_rating_counts['Book-Title'][
+            book_rating_counts['User-ID'] >= threshold].tolist()
+
+        columns = ['User-ID', 'Book-Rating', 'Book-Title']
+        filtered_books = readers_books[columns][
+            readers_books['Book-Title'].isin(filtered_titles)]
+
+        # remove duplicates (take mean value in case of duplicate ratings)
+        return filtered_books.groupby(
+            ['User-ID', 'Book-Title'], as_index=False)['Book-Rating'].mean()
+
+    def create_pivot_table(self, title: str, author: str) -> DataFrame:
+        readers_books = self.readers_books(self.df, title, author)
+        filtered_books = self.filter_by_thresh(readers_books, 8)
+        return filtered_books.pivot(
+            index='User-ID', columns='Book-Title', values='Book-Rating')
 
 
 if __name__ == '__main__':
     manager = DatasetManager()
-    manager.get_dataset()
-    
+    dataset = manager.create_pivot_table(
+        "the fellowship of the ring (the lord of the rings, part 1)",
+        'tolkien')
+    pass
 
-# Number of ratings per other books in dataset
-number_of_rating_per_book = books_of_tolkien_readers.groupby(
-    ['Book-Title']).agg('count').reset_index()
-
-# select only books which have actually higher number of ratings than threshold
-books_to_compare = number_of_rating_per_book['Book-Title'][number_of_rating_per_book['User-ID'] >= 8]
-books_to_compare = books_to_compare.tolist()
-
-ratings_data_raw = books_of_tolkien_readers[[
-    'User-ID', 'Book-Rating', 'Book-Title']][books_of_tolkien_readers['Book-Title'].isin(books_to_compare)]
-#
-# # group by User and Book and compute mean
-# ratings_data_raw_nodup = ratings_data_raw.groupby(
-#     ['User-ID', 'Book-Title'])['Book-Rating'].mean()
-#
-# # reset index to see User-ID in every row
-# ratings_data_raw_nodup = ratings_data_raw_nodup.to_frame().reset_index()
-#
 # dataset_for_corr = ratings_data_raw_nodup.pivot(
 #     index='User-ID', columns='Book-Title', values='Book-Rating')
 #
