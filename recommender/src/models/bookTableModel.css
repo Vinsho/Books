@@ -1,0 +1,13 @@
+.Book-table{
+  background-color: #feffd9;
+  border: 1px solid black;
+  border-collapse: collapse;
+  margin: 20px
+}
+
+.Book-th, .Book-td{
+  padding: 15px;
+  text-align: left;
+  color: black;
+  border: 1px solid black;
+}
